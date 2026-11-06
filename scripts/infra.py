@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from dashboards import dashboards
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / '.state'
@@ -256,7 +257,9 @@ datasources:
                 dashboard['panels'].append({'id': i + 1, 'type': 'timeseries', 'title': title,
                     'gridPos': {'x': (i % 2) * 12, 'y': (i // 2) * 8, 'w': 12, 'h': 8},
                     'datasource': {'type': 'prometheus', 'uid': 'prometheus'}, 'targets': [{'expr': expr, 'refId': 'A'}]})
-            items.append(obj('ConfigMap', 'grafana-dashboards', ns, data={'infrastructure.json': json.dumps(dashboard)}))
+            dashboard_files = {'infrastructure.json': json.dumps(dashboard)}
+            dashboard_files.update({d['uid'] + '.json': json.dumps(d) for d in dashboards()})
+            items.append(obj('ConfigMap', 'grafana-dashboards', ns, data=dashboard_files))
             items.append(obj('ConfigMap', 'grafana-dashboard-provider', ns, data={'provider.yaml': '''apiVersion: 1
 providers:
   - name: cloudops

@@ -35,7 +35,9 @@ jobs:
       - name: Subir infraestrutura
         run: python scripts/infra.py up
       - name: Testar contratos e telemetria
-        run: python scripts/infra.py test
+        run: |
+          python scripts/infra.py test
+          python scripts/check_dashboards.py
       - name: Aplicar recursos locais e verificar idempotência
         run: |
           terraform -chdir=infra/terraform/local apply -auto-approve -input=false

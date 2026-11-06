@@ -24,6 +24,9 @@ Abrir [Grafana local](http://127.0.0.1:3000) para visualizar o dashboard de infr
 - [Guia de operação, acessos, diagnóstico e limpeza](docs/infraestrutura-local.md)
 - [Plano detalhado dos cinco projetos e casos operacionais](docs/plano-de-execucao.md)
 - [Compatibilidade validada e evidências](docs/compatibilidade.md)
+- [Aplicações, pilares e contratos dos dashboards](docs/observabilidade-aplicacoes.md)
+
+O Grafana contém um dashboard de infraestrutura com dados do cluster e três estruturas de diagnóstico: Checkout/Métricas, Processamento/Logs e Webhooks/Traces. Os painéis das aplicações aguardam implementação e instrumentação; não são demonstrações de incidentes já executados.
 
 Para remover exclusivamente o cluster do laboratório e seus dados: `python scripts/infra.py down`.
 
