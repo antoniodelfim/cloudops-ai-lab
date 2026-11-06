@@ -4,7 +4,28 @@ Laboratórios reproduzíveis de DevOps, SRE, Engenharia de Plataforma e operaç�
 
 ## Estado atual
 
-Etapa de fundação: este repositório reúne a apresentação do portfólio e o roteiro de execução. O código da aplicação, a infraestrutura, os pipelines e as demonstrações estão planejados; nenhum recurso de nuvem foi provisionado.
+Infraestrutura local implementada: Kubernetes com kind, floci-gcp, OpenTelemetry Collector, Prometheus, Loki, Tempo, Grafana, Alertmanager, kube-state-metrics e instalação do Argo CD. Terraform configura Storage e Pub/Sub no emulador. Aplicações de negócio, SLOs e investigador de IA são as próximas entregas. Nenhum recurso de nuvem real foi provisionado.
+
+## Executar a infraestrutura
+
+Pré-requisitos: Docker Linux com cgroup v2, Python 3.11+ e Terraform 1.11+. Na raiz do repositório:
+
+```sh
+python scripts/setup_tools.py
+python scripts/infra.py up
+python scripts/infra.py test
+python scripts/infra.py gitops
+terraform -chdir=infra/terraform/local init
+terraform -chdir=infra/terraform/local apply
+```
+
+Abrir [Grafana local](http://127.0.0.1:3000) para visualizar o dashboard de infraestrutura. A senha de administração é gerada localmente e não é versionada. Ferramentas e kubeconfig ficam isolados neste projeto.
+
+- [Guia de operação, acessos, diagnóstico e limpeza](docs/infraestrutura-local.md)
+- [Plano detalhado dos cinco projetos e casos operacionais](docs/plano-de-execucao.md)
+- [Compatibilidade validada e evidências](docs/compatibilidade.md)
+
+Para remover exclusivamente o cluster do laboratório e seus dados: `python scripts/infra.py down`.
 
 ## Foco principal
 

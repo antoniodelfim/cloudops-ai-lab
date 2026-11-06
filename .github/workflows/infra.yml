@@ -1,0 +1,49 @@
+name: Infraestrutura local
+on:
+  push:
+    branches: [main]
+    paths: ['infra/**', 'scripts/**', 'tests/**', '.github/workflows/infra.yml']
+  pull_request:
+    paths: ['infra/**', 'scripts/**', 'tests/**', '.github/workflows/infra.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13'
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: '1.11.2'
+          terraform_wrapper: false
+      - name: Validar configuração
+        run: |
+          python -m unittest discover -s tests -v
+          terraform -chdir=infra/terraform/local fmt -check
+          terraform -chdir=infra/terraform/local init -input=false -lockfile=readonly
+          terraform -chdir=infra/terraform/local validate
+      - name: Preparar ferramentas
+        run: python scripts/setup_tools.py
+      - name: Subir infraestrutura
+        run: python scripts/infra.py up
+      - name: Testar contratos e telemetria
+        run: python scripts/infra.py test
+      - name: Aplicar recursos locais e verificar idempotência
+        run: |
+          terraform -chdir=infra/terraform/local apply -auto-approve -input=false
+          terraform -chdir=infra/terraform/local plan -detailed-exitcode -input=false
+          terraform -chdir=infra/terraform/local destroy -auto-approve -input=false
+      - name: Diagnóstico em caso de falha
+        if: failure()
+        run: python scripts/infra.py status
+      - name: Limpeza
+        if: always()
+        run: python scripts/infra.py down
