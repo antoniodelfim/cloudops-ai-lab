@@ -261,3 +261,74 @@ Próxima entrega concreta: Compose do floci-gcp e teste de contrato Storage/Pub/
 
 Referências consultadas em 6 de novembro de 2026. Revalidar suporte, versões e preços na implementação.
 
+
+## 17. Aplicações e casos de operação
+
+As aplicações serão pequenas, funcionais e conectadas aos cinco projetos. Os casos reproduzem classes de problemas de produção em laboratório; não representam incidentes de empresas nem resultados reais de produção. Cada aplicação terá execução saudável antes de receber mecanismos de falha.
+
+### Aplicação A — checkout e pedidos
+
+**Problema de negócio:** receber pedidos sem duplicação e acompanhar seu processamento. Componentes: checkout-api, Pub/Sub e order-worker com persistência no Storage no primeiro recorte. A aplicação compartilhada da seção 5 é o primeiro incremento desta aplicação.
+
+**Casos separados:**
+
+| Caso | Sintoma e impacto | Evidências a coletar | Resolução a implementar e verificar |
+| --- | --- | --- | --- |
+| A01 — dependência lenta | Aumento do p95, timeouts e pedidos sem confirmação | Trace da dependência, duração HTTP, timeout e taxa de sucesso | Timeout explícito, retry limitado com jitter apenas em operações seguras e orçamento total de tempo; repetir carga e verificar recuperação |
+| A02 — reentrega de mensagem | Mesmo pedido processado mais de uma vez | message_id, order_id nos logs, contagem de tentativas e registros persistidos | Idempotência e confirmação após persistência; forçar falha entre persistir e confirmar e verificar efeito único |
+| A03 — deployment regressivo | Erros aumentam após nova versão | Deployment/ReplicaSet, versão nos sinais e comparação antes/depois | Git revert, reconciliação e smoke test; corrigir contrato e acrescentar teste de regressão |
+
+**Aceite funcional:** pedido válido percorre API → fila → worker → armazenamento; entrada inválida é rejeitada; reentrega não duplica o resultado. A forma de persistência e controle concorrente da idempotência deve ser definida e testada antes de afirmar garantia de efeito único.
+
+### Aplicação B — processamento de arquivos
+
+**Problema de negócio:** receber arquivos sintéticos, processá-los de forma assíncrona e consultar o estado. Componentes: upload-api, Storage, Pub/Sub e processing-worker. Reutilizar bibliotecas e charts da aplicação A, preservando domínio e cenários próprios.
+
+| Caso | Sintoma e impacto | Evidências a coletar | Resolução a implementar e verificar |
+| --- | --- | --- | --- |
+| B01 — backlog crescente | Arquivos aguardam além do prazo | Idade da mensagem mais antiga, profundidade da fila, duração e throughput do worker | Limitar concorrência por worker, ajustar capacidade e testar escalabilidade; comprovar drenagem sem sobrecarregar dependências |
+| B02 — memória esgotada | Worker reinicia e arquivos não terminam | OOMKilled, working set, tamanho do arquivo e tentativas | Processamento em streaming, limite de entrada e dimensionamento; repetir arquivo causador com memória limitada |
+| B03 — mensagem inválida | Repetição contínua de falha bloqueia progresso | Erro de validação, tentativas e pedidos saudáveis atrasados | Tentativas limitadas e quarentena; demonstrar que mensagens saudáveis continuam e que há reprocessamento controlado |
+
+**Aceite funcional:** arquivo pequeno é processado e seu estado fica consultável; entrada excessiva é rejeitada; arquivo inválido não impede processamento de outros. Validar suporte a dead-letter no emulador antes de depender dele; se necessário implementar quarentena explícita na aplicação e documentar a diferença.
+
+### Aplicação C — entrega de webhooks
+
+**Problema de negócio:** entregar notificações para parceiros com falhas transitórias. Componentes: webhook-api, fila, delivery-worker e partner-mock configurável. Não chamar endpoints de terceiros reais.
+
+| Caso | Sintoma e impacto | Evidências a coletar | Resolução a implementar e verificar |
+| --- | --- | --- | --- |
+| C01 — parceiro responde 429 | Retentativas aumentam carga e atrasam notificações | Status HTTP, Retry-After, taxa de tentativas e idade da fila | Respeitar Retry-After, backoff com jitter e limite de concorrência; verificar redução de chamadas e recuperação |
+| C02 — parceiro indisponível | Fila cresce e threads ficam ocupadas | Timeouts, conexões, traces e entregas pendentes | Timeout, circuit breaker e isolamento de capacidade; testar abertura, recuperação e ausência de tempestade de retries |
+| C03 — credencial de teste rotacionada | Entregas recebem 401 após mudança | Versão de configuração, status HTTP e evento de rollout sem conteúdo do segredo | Atualizar referência/configuração e fazer rollout controlado; verificar retomada e ausência de segredo nos logs |
+
+**Aceite funcional:** webhook chega ao partner-mock; falha transitória é recuperada; chave de idempotência permite deduplicação no receptor; falha permanente fica visível e não gera retry infinito.
+
+### Organização do código e das evidências
+
+No primeiro incremento, as aplicações ficam em platform-gitops-lab/apps/checkout, apps/file-processing e apps/webhook-delivery, com charts correspondentes. Não criar três aplicações completas em paralelo: terminar checkout com o caso A03 e o investigador mínimo antes de começar processamento de arquivos; webhooks vem depois.
+
+Os casos operacionais ficam em sre-reliability-lab/scenarios/A01, A02, A03, B01 etc. Cada diretório contém:
+
+1. context.md: negócio, arquitetura, sintomas, impacto e SLI/SLO afetado.
+2. preconditions.md: versões, carga, recursos, namespace e estado saudável necessário.
+3. inject: comando/script idempotente de falha com limite de duração e contexto permitido.
+4. evidence: consultas, dashboards, traces e logs sanitizados da execução, com timestamps e versão.
+5. investigation.md: fatos observados, hipóteses, testes de validação e causa confirmada após comprovação.
+6. resolution.md: mitigação imediata, correção permanente, trade-offs e rollback.
+7. verify: teste que comprova recuperação, efeito funcional e ausência de recorrência no cenário definido.
+8. postmortem.md: timeline, impacto observado, fatores contribuintes e ações preventivas.
+9. cleanup: restauração e verificação de que o ambiente voltou ao estado saudável.
+
+Criar os arquivos de evidência após executar o cenário. Exemplos preparados previamente devem ser identificados como fixtures, nunca apresentados como medições.
+
+### Uso dos casos pela IA
+
+Para cada execução, separar o conjunto de evidências fornecido ao investigador do gabarito usado na avaliação. O agente não recebe a causa injetada no prompt. Registrar relatório antes da resolução, comparar com o gabarito e avaliar hipótese, evidências, incerteza e recomendações. Incluir casos sem falha e casos de causa desconhecida. A correção é aplicada por fluxo humano/GitOps e verificada pelos mesmos testes funcionais e SLIs.
+
+### Incrementos e impacto no cronograma
+
+- MVP de cinco semanas: somente checkout, A03 como cenário completo obrigatório e A01 se houver capacidade. Não exigir as três aplicações para validar o primeiro incremento.
+- Consolidação: fechar A01–A03, depois implementar B01 e B02. B03 e aplicação C entram em uma etapa adicional após esses aceites.
+- Nove casos completos e três aplicações ampliam o escopo original; não estão prometidos no mesmo prazo de cinco ou dez semanas. Reestimar após medir o esforço do primeiro caso.
+- Evidência final por caso: executar comportamento saudável → injetar falha → observar alerta → investigar → mitigar → corrigir → repetir teste → documentar resultado.
