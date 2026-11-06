@@ -41,6 +41,10 @@ Comandos de reprodução estão no guia de infraestrutura; scripts/smoke.py cria
 
 ## Limites ainda não validados
 
+Primeira reprodução em runner Linux: [GitHub Actions — execução 42167653397](https://github.com/antoniodelfim/cloudops-ai-lab/actions/runs/42167653397), concluída com sucesso em 1 minuto e 46 segundos. Executou configuração, criação do cluster, contratos, telemetria, Terraform, idempotência e limpeza. A instalação Argo CD foi validada localmente, fora deste job.
+
+Observação de capacidade local: aproximadamente 3,9 GiB de memória no container do nó com observabilidade e Argo CD ativos, sem carga de aplicação. É uma leitura pontual do docker stats, não um requisito mínimo nem resultado de benchmark.
+
 - IAM real, rede/VPC, quotas, escalabilidade e disponibilidade do GCP/GKE.
 - Semântica de reentrega sob falhas, concorrência e idempotência da futura aplicação.
 - Serviços cloud além das operações Storage/PubSub listadas.
